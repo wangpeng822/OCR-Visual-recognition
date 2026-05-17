@@ -1,0 +1,63 @@
+from __future__ import annotations
+
+try:
+    from PySide6.QtCore import QObject, QThread, Qt, QRectF, Signal
+    from PySide6.QtGui import QAction, QColor, QImage, QPainter, QPen, QPixmap
+    from PySide6.QtWidgets import (
+        QAbstractItemView,
+        QApplication,
+        QFileDialog,
+        QFrame,
+        QGraphicsPixmapItem,
+        QGraphicsRectItem,
+        QGraphicsScene,
+        QGraphicsView,
+        QGridLayout,
+        QGroupBox,
+        QHBoxLayout,
+        QLabel,
+        QLineEdit,
+        QListWidget,
+        QListWidgetItem,
+        QMainWindow,
+        QMessageBox,
+        QProgressBar,
+        QPushButton,
+        QSizePolicy,
+        QSplitter,
+        QStatusBar,
+        QTextEdit,
+        QVBoxLayout,
+        QWidget,
+    )
+except ImportError:
+    from PyQt5.QtCore import QObject, QThread, Qt, QRectF, pyqtSignal as Signal
+    from PyQt5.QtGui import QColor, QImage, QPainter, QPen, QPixmap
+    from PyQt5.QtWidgets import (
+        QAction,
+        QAbstractItemView,
+        QApplication,
+        QFileDialog,
+        QFrame,
+        QGraphicsPixmapItem,
+        QGraphicsRectItem,
+        QGraphicsScene,
+        QGraphicsView,
+        QGridLayout,
+        QGroupBox,
+        QHBoxLayout,
+        QLabel,
+        QLineEdit,
+        QListWidget,
+        QListWidgetItem,
+        QMainWindow,
+        QMessageBox,
+        QProgressBar,
+        QPushButton,
+        QSizePolicy,
+        QSplitter,
+        QStatusBar,
+        QTextEdit,
+        QVBoxLayout,
+        QWidget,
+    )
