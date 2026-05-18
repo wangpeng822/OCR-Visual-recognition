@@ -33,6 +33,10 @@ class MainWindow(QMainWindow):
         self.image_list_panel = ImageListPanel()
         self.image_canvas = ImageCanvas()
         self.right_sidebar = RightSidebar()
+        self.image_list_panel.setMinimumWidth(240)
+        self.image_canvas.setMinimumWidth(640)
+        self.right_sidebar.setMinimumWidth(320)
+        self.right_sidebar.setMaximumWidth(380)
         self.nfc_service = NfcService(self)
         self.ocr_service = OCRService(Path(__file__).resolve().parents[2])
         self.ocr_thread: QThread | None = None
@@ -52,27 +56,24 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
 
-        header_label = QLabel("OCR 批处理与 NFC 编号工具")
+        header_label = QLabel("OCR + NFC 编号工具")
         header_label.setObjectName("heroTitle")
 
-        sub_label = QLabel("当前支持图片列表、预览标注、右侧结果栏，以及 OCR/NFC 联调入口。")
-        sub_label.setObjectName("helperText")
-
-        splitter = QSplitter()
-        splitter.addWidget(self.image_list_panel)
-        splitter.addWidget(self.image_canvas)
-        splitter.addWidget(self.right_sidebar)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 6)
-        splitter.setStretchFactor(2, 3)
-        splitter.setSizes([280, 740, 420])
+        self.main_splitter = QSplitter()
+        self.main_splitter.addWidget(self.image_list_panel)
+        self.main_splitter.addWidget(self.image_canvas)
+        self.main_splitter.addWidget(self.right_sidebar)
+        self.main_splitter.setStretchFactor(0, 0)
+        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setStretchFactor(2, 0)
+        self.main_splitter.setChildrenCollapsible(False)
+        self.main_splitter.setSizes([260, 860, 340])
 
         root_layout = QVBoxLayout(central)
-        root_layout.setContentsMargins(18, 18, 18, 18)
-        root_layout.setSpacing(12)
+        root_layout.setContentsMargins(12, 10, 12, 10)
+        root_layout.setSpacing(8)
         root_layout.addWidget(header_label)
-        root_layout.addWidget(sub_label)
-        root_layout.addWidget(splitter, 1)
+        root_layout.addWidget(self.main_splitter, 1)
 
         status_bar = QStatusBar()
         self.setStatusBar(status_bar)
@@ -112,10 +113,10 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(
             """
             QMainWindow {
-                background: #f3efe6;
+                background: #ffffff;
             }
             QLabel#heroTitle {
-                font-size: 24px;
+                font-size: 20px;
                 font-weight: 700;
                 color: #1f2a2a;
             }
@@ -135,8 +136,8 @@ class MainWindow(QMainWindow):
                 font-weight: 600;
             }
             QFrame#leftPanelFrame, QFrame#previewFrame, QGroupBox {
-                background: #fffdf8;
-                border: 1px solid #d9d0c3;
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
                 border-radius: 14px;
             }
             QGroupBox {
@@ -157,18 +158,19 @@ class MainWindow(QMainWindow):
                 padding: 10px 12px;
                 margin-bottom: 6px;
                 border-radius: 10px;
-                background: #f7f1e7;
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
             }
             QListWidget#imageTaskList::item:selected {
-                background: #dce8d2;
-                color: #1d2c1f;
+                background: #eef6ff;
+                color: #123047;
             }
             QLabel#imagePreview {
                 color: #73808a;
                 font-size: 16px;
-                border: 2px dashed #d7c9b0;
+                border: 2px dashed #d1d5db;
                 border-radius: 16px;
-                background: #faf7f2;
+                background: #ffffff;
             }
             QPushButton {
                 background: #284b63;
@@ -182,8 +184,8 @@ class MainWindow(QMainWindow):
                 background: #34627f;
             }
             QLineEdit, QTextEdit {
-                background: #fffdf8;
-                border: 1px solid #d9d0c3;
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
                 border-radius: 10px;
                 padding: 8px;
             }
@@ -194,7 +196,7 @@ class MainWindow(QMainWindow):
                 line-height: 1.35;
             }
             QSplitter::handle {
-                background: #e0d8cc;
+                background: #e5e7eb;
                 width: 6px;
             }
             """

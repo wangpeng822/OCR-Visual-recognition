@@ -34,7 +34,8 @@ class RightSidebar(QWidget):
         self.selected_text_input.setObjectName("selectedTextPreview")
         self.selected_text_input.setPlaceholderText("点击图片中的识别文字后显示在这里")
         self.selected_text_input.setReadOnly(True)
-        self.selected_text_input.setMinimumHeight(132)
+        self.selected_text_input.setMinimumHeight(120)
+        self.selected_text_input.setMaximumHeight(170)
 
         self.selected_score_label = QLabel("置信度: -")
         self.selected_score_label.setObjectName("helperText")
@@ -71,12 +72,13 @@ class RightSidebar(QWidget):
         self.history_list.setObjectName("nfcHistoryList")
         self.history_list.setSelectionMode(QListWidget.NoSelection)
         self.history_list.setFocusPolicy(Qt.NoFocus)
+        self.history_list.setMaximumHeight(150)
 
         self._wire_events()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
         layout.addWidget(self.title_label)
         layout.addWidget(self._build_result_group())
         layout.addWidget(self._build_nfc_group())
@@ -116,7 +118,8 @@ class RightSidebar(QWidget):
     def _build_result_group(self) -> QGroupBox:
         group = QGroupBox("当前选中文字")
         layout = QVBoxLayout(group)
-        layout.setSpacing(8)
+        layout.setContentsMargins(10, 12, 10, 10)
+        layout.setSpacing(6)
         layout.addWidget(self.selected_text_input)
         layout.addWidget(self.selected_score_label)
         return group
@@ -124,7 +127,8 @@ class RightSidebar(QWidget):
     def _build_nfc_group(self) -> QGroupBox:
         group = QGroupBox("NFC 操作")
         layout = QVBoxLayout(group)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 12, 10, 10)
+        layout.setSpacing(8)
 
         status_row = QHBoxLayout()
         status_row.addWidget(QLabel("设备状态"))

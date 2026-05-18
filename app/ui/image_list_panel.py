@@ -65,8 +65,8 @@ class ImageListPanel(QWidget):
         frame = QFrame()
         frame.setObjectName("leftPanelFrame")
         frame_layout = QVBoxLayout(frame)
-        frame_layout.setContentsMargins(12, 12, 12, 12)
-        frame_layout.setSpacing(10)
+        frame_layout.setContentsMargins(10, 10, 10, 10)
+        frame_layout.setSpacing(8)
         frame_layout.addWidget(self.summary_label)
         frame_layout.addWidget(self.list_widget, 1)
         frame_layout.addLayout(action_row)
@@ -74,7 +74,7 @@ class ImageListPanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
         layout.addWidget(self.title_label)
         layout.addWidget(frame, 1)
 
