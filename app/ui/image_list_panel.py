@@ -26,7 +26,6 @@ class ImageListPanel(QWidget):
     item_deleted = Signal(object)
     list_cleared = Signal()
     start_requested = Signal()
-    next_batch_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -47,13 +46,11 @@ class ImageListPanel(QWidget):
         self.start_button = QPushButton("开始识别")
         self.delete_button = QPushButton("删除选中")
         self.clear_button = QPushButton("清空列表")
-        self.next_batch_button = QPushButton("下一批")
 
         self.import_button.clicked.connect(self._pick_files)
         self.start_button.clicked.connect(self.start_requested.emit)
         self.delete_button.clicked.connect(self.delete_current_item)
         self.clear_button.clicked.connect(self.clear_all_items)
-        self.next_batch_button.clicked.connect(self.next_batch_requested.emit)
 
         action_row = QHBoxLayout()
         action_row.setSpacing(8)
@@ -74,7 +71,6 @@ class ImageListPanel(QWidget):
         frame_layout.addWidget(self.list_widget, 1)
         frame_layout.addLayout(action_row)
         frame_layout.addLayout(manage_row)
-        frame_layout.addWidget(self.next_batch_button)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

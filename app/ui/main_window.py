@@ -10,7 +10,6 @@ from app.ui.image_canvas import ImageCanvas
 from app.ui.image_list_panel import ImageListPanel
 from app.ui.qt_compat import (
     QAction,
-    QApplication,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -83,16 +82,11 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("文件")
-        tools_menu = self.menuBar().addMenu("工具")
 
         import_action = QAction("导入图片", self)
         import_action.triggered.connect(self.image_list_panel.import_button.click)
 
-        clear_action = QAction("清空当前文本", self)
-        clear_action.triggered.connect(self.right_sidebar.clear_button.click)
-
         file_menu.addAction(import_action)
-        tools_menu.addAction(clear_action)
 
     def _wire_events(self) -> None:
         self.image_list_panel.selection_changed.connect(self._on_image_selected)
@@ -100,15 +94,10 @@ class MainWindow(QMainWindow):
         self.image_list_panel.item_deleted.connect(self._on_image_deleted)
         self.image_list_panel.list_cleared.connect(self._on_image_list_cleared)
         self.image_list_panel.start_requested.connect(self._on_start_requested)
-        self.image_list_panel.next_batch_requested.connect(self._on_next_batch_requested)
 
         self.image_canvas.text_box_selected.connect(self._on_text_box_selected)
         self.image_canvas.selection_cleared.connect(self._on_canvas_selection_cleared)
 
-        self.right_sidebar.append_requested.connect(self._on_append_requested)
-        self.right_sidebar.clear_requested.connect(self._on_clear_requested)
-        self.right_sidebar.copy_requested.connect(self._on_copy_requested)
-        self.right_sidebar.use_selected_text_for_nfc_requested.connect(self._on_use_selected_for_nfc)
         self.right_sidebar.fill_text_from_nfc_requested.connect(self._on_fill_text_from_nfc)
         self.right_sidebar.nfc_connect_requested.connect(self._on_nfc_connect_requested)
         self.right_sidebar.nfc_read_requested.connect(self._on_nfc_read_requested)
@@ -198,6 +187,12 @@ class MainWindow(QMainWindow):
                 border-radius: 10px;
                 padding: 8px;
             }
+            QTextEdit#selectedTextPreview {
+                font-size: 20px;
+                font-weight: 650;
+                color: #182f2d;
+                line-height: 1.35;
+            }
             QSplitter::handle {
                 background: #e0d8cc;
                 width: 6px;
@@ -212,26 +207,22 @@ class MainWindow(QMainWindow):
         if item is None:
             self.image_canvas.set_image(None)
             self.right_sidebar.set_selected_text("")
-            self.right_sidebar.set_full_text("")
             return
 
         self.image_canvas.set_image(item.path, item.ocr_result)
         self.right_sidebar.set_selected_text(item.selected_text or "", item.selected_score)
-        self.right_sidebar.set_full_text(item.full_text or "")
         self.statusBar().showMessage(f"当前图片: {item.filename}")
 
     def _on_image_deleted(self, item: ImageListItem) -> None:
         if not self.image_list_panel._items_by_row:
             self.image_canvas.set_image(None)
             self.right_sidebar.set_selected_text("")
-            self.right_sidebar.set_full_text("")
             self.progress_bar.setValue(0)
         self.statusBar().showMessage(f"已删除图片任务: {item.filename}")
 
     def _on_image_list_cleared(self) -> None:
         self.image_canvas.set_image(None)
         self.right_sidebar.set_selected_text("")
-        self.right_sidebar.set_full_text("")
         self.progress_bar.setValue(0)
         self.statusBar().showMessage("图片任务列表已清空")
 
@@ -285,38 +276,6 @@ class MainWindow(QMainWindow):
         self.ocr_worker.batch_finished.connect(self.ocr_thread.quit)
         self.ocr_thread.finished.connect(self._cleanup_ocr_worker)
         self.ocr_thread.start()
-
-    def _on_next_batch_requested(self) -> None:
-        self.statusBar().showMessage("下一批入口已预留")
-
-    def _on_append_requested(self, text: str) -> None:
-        if not text:
-            return
-        current = self.right_sidebar.full_text_edit.toPlainText().strip()
-        combined = f"{current}\n{text}".strip() if current else text
-        self.right_sidebar.set_full_text(combined)
-        current_item = self.image_list_panel.current_item()
-        if current_item is not None:
-            current_item.full_text = combined
-        self.statusBar().showMessage("已追加到结果区")
-
-    def _on_clear_requested(self) -> None:
-        current_item = self.image_list_panel.current_item()
-        if current_item is not None:
-            current_item.selected_text = ""
-            current_item.selected_score = None
-            current_item.full_text = ""
-        self.statusBar().showMessage("文本区已清空")
-
-    def _on_copy_requested(self, text: str) -> None:
-        if not text:
-            return
-        QApplication.clipboard().setText(text)
-        self.statusBar().showMessage("已复制当前文本")
-
-    def _on_use_selected_for_nfc(self, text: str) -> None:
-        self.right_sidebar.nfc_write_value.setText(text)
-        self.statusBar().showMessage("已将当前选中文本填入待写编号")
 
     def _on_fill_text_from_nfc(self, text: str) -> None:
         self.right_sidebar.set_selected_text(text)
@@ -389,7 +348,6 @@ class MainWindow(QMainWindow):
         if current_item is not None and current_item.image_id == image_id:
             self.image_canvas.set_image(item.path, item.ocr_result)
             self.right_sidebar.set_selected_text("")
-            self.right_sidebar.set_full_text(item.full_text)
 
     def _on_ocr_item_failed(self, image_id: str, message: str) -> None:
         item = self._find_item(image_id)
@@ -407,7 +365,6 @@ class MainWindow(QMainWindow):
         if current_item is not None and current_item.image_id == image_id:
             self.image_canvas.set_image(item.path, None)
             self.right_sidebar.set_selected_text("")
-            self.right_sidebar.set_full_text("")
         self.statusBar().showMessage(f"{item.filename} 识别失败: {message}")
 
     def _on_ocr_batch_finished(self, completed: int, failed: int) -> None:

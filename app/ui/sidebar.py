@@ -19,10 +19,6 @@ from app.ui.qt_compat import (
 
 
 class RightSidebar(QWidget):
-    append_requested = Signal(str)
-    clear_requested = Signal()
-    copy_requested = Signal(str)
-    use_selected_text_for_nfc_requested = Signal(str)
     fill_text_from_nfc_requested = Signal(str)
     nfc_connect_requested = Signal()
     nfc_read_requested = Signal()
@@ -31,21 +27,17 @@ class RightSidebar(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self.title_label = QLabel("文本与 NFC")
+        self.title_label = QLabel("当前文字与 NFC")
         self.title_label.setObjectName("panelTitle")
 
-        self.selected_text_input = QLineEdit()
+        self.selected_text_input = QTextEdit()
+        self.selected_text_input.setObjectName("selectedTextPreview")
         self.selected_text_input.setPlaceholderText("点击图片中的识别文字后显示在这里")
+        self.selected_text_input.setReadOnly(True)
+        self.selected_text_input.setMinimumHeight(132)
 
         self.selected_score_label = QLabel("置信度: -")
         self.selected_score_label.setObjectName("helperText")
-
-        self.full_text_edit = QTextEdit()
-        self.full_text_edit.setPlaceholderText("当前图片的完整 OCR 文本会显示在这里")
-
-        self.append_button = QPushButton("追加到结果区")
-        self.clear_button = QPushButton("清空")
-        self.copy_button = QPushButton("复制当前文本")
 
         self.device_status_value = QLabel("未连接")
         self.device_status_value.setObjectName("statusChip")
@@ -73,7 +65,6 @@ class RightSidebar(QWidget):
         self.connect_button = QPushButton("连接设备")
         self.read_button = QPushButton("读取编号")
         self.write_button = QPushButton("写入编号")
-        self.use_selected_button = QPushButton("使用当前选中文字")
         self.fill_from_nfc_button = QPushButton("将 NFC 编号回填文本")
 
         self.history_list = QListWidget()
@@ -88,18 +79,14 @@ class RightSidebar(QWidget):
         layout.setSpacing(10)
         layout.addWidget(self.title_label)
         layout.addWidget(self._build_result_group())
-        layout.addWidget(self._build_editor_group())
         layout.addWidget(self._build_nfc_group())
         layout.addStretch(1)
 
         self.set_nfc_snapshot(NfcDeviceState())
 
     def set_selected_text(self, value: str, score: float | None = None) -> None:
-        self.selected_text_input.setText(value)
+        self.selected_text_input.setPlainText(value)
         self.selected_score_label.setText(f"置信度: {score:.3f}" if score is not None else "置信度: -")
-
-    def set_full_text(self, value: str) -> None:
-        self.full_text_edit.setPlainText(value)
 
     def set_nfc_status(self, value: str) -> None:
         self.device_status_value.setText(value)
@@ -127,23 +114,11 @@ class RightSidebar(QWidget):
             self.history_list.takeItem(self.history_list.count() - 1)
 
     def _build_result_group(self) -> QGroupBox:
-        group = QGroupBox("当前识别结果")
+        group = QGroupBox("当前选中文字")
         layout = QVBoxLayout(group)
         layout.setSpacing(8)
-        layout.addWidget(QLabel("当前选中文字"))
         layout.addWidget(self.selected_text_input)
         layout.addWidget(self.selected_score_label)
-        layout.addWidget(QLabel("完整 OCR 文本"))
-        layout.addWidget(self.full_text_edit)
-        return group
-
-    def _build_editor_group(self) -> QGroupBox:
-        group = QGroupBox("文本操作")
-        layout = QHBoxLayout(group)
-        layout.setSpacing(8)
-        layout.addWidget(self.append_button)
-        layout.addWidget(self.copy_button)
-        layout.addWidget(self.clear_button)
         return group
 
     def _build_nfc_group(self) -> QGroupBox:
@@ -184,7 +159,6 @@ class RightSidebar(QWidget):
 
         helper_actions = QVBoxLayout()
         helper_actions.setSpacing(8)
-        helper_actions.addWidget(self.use_selected_button)
         helper_actions.addWidget(self.fill_from_nfc_button)
 
         history_layout = QVBoxLayout()
@@ -201,20 +175,9 @@ class RightSidebar(QWidget):
         return group
 
     def _wire_events(self) -> None:
-        self.append_button.clicked.connect(lambda: self.append_requested.emit(self.selected_text_input.text()))
-        self.clear_button.clicked.connect(self._clear_texts)
-        self.copy_button.clicked.connect(lambda: self.copy_requested.emit(self.selected_text_input.text()))
-        self.use_selected_button.clicked.connect(
-            lambda: self.use_selected_text_for_nfc_requested.emit(self.selected_text_input.text())
-        )
         self.fill_from_nfc_button.clicked.connect(
             lambda: self.fill_text_from_nfc_requested.emit(self.nfc_read_value.text())
         )
         self.connect_button.clicked.connect(self.nfc_connect_requested.emit)
         self.read_button.clicked.connect(self.nfc_read_requested.emit)
         self.write_button.clicked.connect(lambda: self.nfc_write_requested.emit(self.nfc_write_value.text()))
-
-    def _clear_texts(self) -> None:
-        self.selected_text_input.clear()
-        self.full_text_edit.clear()
-        self.clear_requested.emit()
