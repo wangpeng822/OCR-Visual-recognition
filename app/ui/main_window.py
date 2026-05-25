@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 from app.models.nfc_models import NfcDeviceState, NfcRecord
 from app.models.view_models import ImageListItem, ImageTaskStatus, OCRResult, OCRTextBox
@@ -24,6 +25,13 @@ from app.ui.sidebar import RightSidebar
 from app.workers.ocr_worker import OCRWorker
 
 
+def application_root() -> Path:
+    bundled_root = getattr(sys, "_MEIPASS", None)
+    if bundled_root:
+        return Path(bundled_root)
+    return Path(__file__).resolve().parents[2]
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -38,7 +46,7 @@ class MainWindow(QMainWindow):
         self.right_sidebar.setMinimumWidth(320)
         self.right_sidebar.setMaximumWidth(380)
         self.nfc_service = NfcService(self)
-        self.ocr_service = OCRService(Path(__file__).resolve().parents[2])
+        self.ocr_service = OCRService(application_root())
         self.ocr_thread: QThread | None = None
         self.ocr_worker: OCRWorker | None = None
         self.progress_bar = QProgressBar()
