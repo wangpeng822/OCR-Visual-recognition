@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from app.models.nfc_models import NfcDeviceState, NfcRecord
 from app.ui.qt_compat import (
+    QColor,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QPainter,
     QPushButton,
     QTextEdit,
     Qt,
@@ -16,6 +19,36 @@ from app.ui.qt_compat import (
     QWidget,
     Signal,
 )
+
+
+class TemplateLineEdit(QLineEdit):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.template_prefix_length = 0
+
+    def set_template_prefix_length(self, value: int) -> None:
+        self.template_prefix_length = max(0, value)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # type: ignore[override]
+        super().paintEvent(event)
+        if self.template_prefix_length <= 0:
+            return
+
+        prefix = self.text()[: self.template_prefix_length]
+        if not prefix:
+            return
+
+        margins = self.textMargins()
+        left = margins.left() + 8
+        width = self.fontMetrics().horizontalAdvance(prefix)
+        if width <= 0:
+            return
+
+        painter = QPainter(self)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(207, 234, 255, 150))
+        painter.drawRoundedRect(left - 2, 6, width + 4, max(0, self.height() - 12), 4, 4)
 
 
 class RightSidebar(QWidget):
@@ -60,12 +93,15 @@ class RightSidebar(QWidget):
         self.nfc_read_value.setPlaceholderText("读取后的编号")
         self.nfc_read_value.setReadOnly(True)
 
-        self.nfc_write_value = QLineEdit()
+        self.nfc_write_value = TemplateLineEdit()
         self.nfc_write_value.setPlaceholderText("待写入编号")
+        self._nfc_template = ""
 
         self.connect_button = QPushButton("连接设备")
         self.read_button = QPushButton("读取编号")
         self.write_button = QPushButton("写入编号")
+        self.increment_number_button = QPushButton("编号+1")
+        self.template_button = QPushButton("设置模版")
         self.fill_from_nfc_button = QPushButton("将 NFC 编号回填文本")
 
         self.history_list = QListWidget()
@@ -96,6 +132,21 @@ class RightSidebar(QWidget):
     def set_nfc_read_value(self, value: str) -> None:
         self.nfc_read_value.setText(value)
         self.fill_from_nfc_button.setEnabled(bool(value.strip()))
+
+    def set_nfc_template(self, value: str) -> None:
+        self._nfc_template = value.strip()
+        self._refresh_template_prefix()
+
+    def increment_write_number(self) -> None:
+        value = self.nfc_write_value.text()
+        prefix_length = self._template_prefix_length(value)
+        prefix = value[:prefix_length]
+        numeric_part = value[prefix_length:]
+        if not numeric_part.isdigit():
+            return
+
+        incremented = str(int(numeric_part) + 1).zfill(len(numeric_part))
+        self.nfc_write_value.setText(f"{prefix}{incremented}")
 
     def set_nfc_snapshot(self, state: NfcDeviceState) -> None:
         self.device_status_value.setText(state.status_text)
@@ -155,6 +206,11 @@ class RightSidebar(QWidget):
         field_grid.addWidget(QLabel("待写编号"), 1, 0)
         field_grid.addWidget(self.nfc_write_value, 1, 1)
 
+        template_actions = QHBoxLayout()
+        template_actions.setSpacing(8)
+        template_actions.addWidget(self.increment_number_button)
+        template_actions.addWidget(self.template_button)
+
         primary_actions = QHBoxLayout()
         primary_actions.setSpacing(8)
         primary_actions.addWidget(self.connect_button)
@@ -173,15 +229,38 @@ class RightSidebar(QWidget):
         layout.addLayout(status_row)
         layout.addLayout(meta_grid)
         layout.addLayout(field_grid)
+        layout.addLayout(template_actions)
         layout.addLayout(primary_actions)
         layout.addLayout(helper_actions)
         layout.addLayout(history_layout)
         return group
 
     def _wire_events(self) -> None:
+        self.nfc_write_value.textChanged.connect(self._refresh_template_prefix)
         self.fill_from_nfc_button.clicked.connect(
             lambda: self.fill_text_from_nfc_requested.emit(self.nfc_read_value.text())
         )
         self.connect_button.clicked.connect(self.nfc_connect_requested.emit)
         self.read_button.clicked.connect(self.nfc_read_requested.emit)
         self.write_button.clicked.connect(lambda: self.nfc_write_requested.emit(self.nfc_write_value.text()))
+        self.increment_number_button.clicked.connect(self.increment_write_number)
+        self.template_button.clicked.connect(self._prompt_nfc_template)
+
+    def _prompt_nfc_template(self) -> None:
+        value, accepted = QInputDialog.getText(self, "设置模版", "输入模板位数或前缀模板")
+        if accepted:
+            self.set_nfc_template(value)
+
+    def _refresh_template_prefix(self) -> None:
+        self.nfc_write_value.set_template_prefix_length(
+            self._template_prefix_length(self.nfc_write_value.text())
+        )
+
+    def _template_prefix_length(self, value: str) -> int:
+        if not self._nfc_template:
+            return 0
+        if self._nfc_template.isdigit():
+            return min(int(self._nfc_template), len(value))
+        if value.startswith(self._nfc_template):
+            return len(self._nfc_template)
+        return 0
