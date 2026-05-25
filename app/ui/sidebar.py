@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
+
 from app.models.nfc_models import NfcDeviceState, NfcRecord
 from app.ui.qt_compat import (
     QColor,
+    QDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -19,6 +23,50 @@ from app.ui.qt_compat import (
     QWidget,
     Signal,
 )
+
+
+def default_template_path() -> Path:
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        return Path(appdata) / "OCR_NFC_Desktop" / "nfc_templates.json"
+    return Path.home() / ".ocr_nfc_desktop" / "nfc_templates.json"
+
+
+class NfcTemplateStore:
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or default_template_path()
+        self.templates = self._load()
+
+    def add(self, value: str) -> None:
+        template = value.strip()
+        if not template or template in self.templates:
+            return
+        self.templates.append(template)
+        self._save()
+
+    def delete(self, value: str) -> None:
+        template = value.strip()
+        self.templates = [item for item in self.templates if item != template]
+        self._save()
+
+    def clear(self) -> None:
+        self.templates = []
+        self._save()
+
+    def _load(self) -> list[str]:
+        if not self.path.exists():
+            return []
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        if not isinstance(data, list):
+            return []
+        return [item.strip() for item in data if isinstance(item, str) and item.strip()]
+
+    def _save(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps(self.templates, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 class TemplateLineEdit(QLineEdit):
@@ -51,14 +99,98 @@ class TemplateLineEdit(QLineEdit):
         painter.drawRoundedRect(left - 2, 6, width + 4, max(0, self.height() - 12), 4, 4)
 
 
+class NfcTemplateManagerDialog(QDialog):
+    template_applied = Signal(str)
+
+    def __init__(self, store: NfcTemplateStore, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.store = store
+        self.setWindowTitle("模版管理")
+        self.resize(360, 300)
+
+        self.prefix_template_input = QLineEdit()
+        self.prefix_template_input.setPlaceholderText("输入前缀模版，如 E123")
+        self.template_list = QListWidget()
+        self.add_prefix_button = QPushButton("新增模版")
+        self.apply_button = QPushButton("应用")
+        self.delete_button = QPushButton("删除")
+        self.delete_all_button = QPushButton("删除全部")
+        self.close_button = QPushButton("关闭")
+
+        prefix_row = QHBoxLayout()
+        prefix_row.setSpacing(8)
+        prefix_row.addWidget(QLabel("模版"))
+        prefix_row.addWidget(self.prefix_template_input, 1)
+        prefix_row.addWidget(self.add_prefix_button)
+
+        action_row = QHBoxLayout()
+        action_row.setSpacing(8)
+        action_row.addWidget(self.apply_button)
+        action_row.addWidget(self.delete_button)
+        action_row.addWidget(self.delete_all_button)
+        action_row.addStretch(1)
+        action_row.addWidget(self.close_button)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+        layout.addWidget(QLabel("已有模版"))
+        layout.addLayout(prefix_row)
+        layout.addWidget(self.template_list, 1)
+        layout.addLayout(action_row)
+
+        self.add_prefix_button.clicked.connect(self._add_prefix_template)
+        self.apply_button.clicked.connect(self._apply_template)
+        self.delete_button.clicked.connect(self._delete_template)
+        self.delete_all_button.clicked.connect(self._delete_all_templates)
+        self.close_button.clicked.connect(self.close)
+        self.template_list.itemDoubleClicked.connect(lambda _item: self._apply_template())
+
+        self._refresh_templates()
+
+    def _refresh_templates(self) -> None:
+        self.template_list.clear()
+        for template in self.store.templates:
+            self.template_list.addItem(template)
+
+    def _selected_template(self) -> str:
+        item = self.template_list.currentItem()
+        return item.text() if item is not None else ""
+
+    def _add_prefix_template(self) -> None:
+        self.store.add(self.prefix_template_input.text())
+        self.prefix_template_input.clear()
+        self._refresh_templates()
+        if self.template_list.count() > 0:
+            self.template_list.setCurrentRow(self.template_list.count() - 1)
+
+    def _apply_template(self) -> None:
+        template = self._selected_template()
+        if template:
+            self.template_applied.emit(template)
+            self.accept()
+
+    def _delete_template(self) -> None:
+        template = self._selected_template()
+        if not template:
+            return
+        self.store.delete(template)
+        self._refresh_templates()
+
+    def _delete_all_templates(self) -> None:
+        self.store.clear()
+        self._refresh_templates()
+
+
 class RightSidebar(QWidget):
     fill_text_from_nfc_requested = Signal(str)
     nfc_connect_requested = Signal()
     nfc_read_requested = Signal()
     nfc_write_requested = Signal(str)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, template_store: NfcTemplateStore | None = None) -> None:
         super().__init__(parent)
+        self.template_store = template_store or NfcTemplateStore()
 
         self.title_label = QLabel("当前文字与 NFC")
         self.title_label.setObjectName("panelTitle")
@@ -88,6 +220,9 @@ class RightSidebar(QWidget):
 
         self.operation_value = QLabel("空闲")
         self.operation_value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.current_template_value = QLabel("未设置")
+        self.current_template_value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.current_template_value.setObjectName("helperText")
 
         self.nfc_read_value = QLineEdit()
         self.nfc_read_value.setPlaceholderText("读取后的编号")
@@ -96,12 +231,14 @@ class RightSidebar(QWidget):
         self.nfc_write_value = TemplateLineEdit()
         self.nfc_write_value.setPlaceholderText("待写入编号")
         self._nfc_template = ""
+        self._filled_template_as_text = False
 
         self.connect_button = QPushButton("连接设备")
         self.read_button = QPushButton("读取编号")
         self.write_button = QPushButton("写入编号")
         self.increment_number_button = QPushButton("编号+1")
         self.template_button = QPushButton("设置模版")
+        self.fill_template_button = QPushButton("填入模版")
         self.fill_from_nfc_button = QPushButton("将 NFC 编号回填文本")
 
         self.history_list = QListWidget()
@@ -135,13 +272,24 @@ class RightSidebar(QWidget):
 
     def set_nfc_template(self, value: str) -> None:
         self._nfc_template = value.strip()
+        self._filled_template_as_text = False
+        self.current_template_value.setText(self._nfc_template or "未设置")
         self._refresh_template_prefix()
+
+    def fill_current_template(self) -> None:
+        if not self._nfc_template:
+            return
+        self._filled_template_as_text = True
+        self.nfc_write_value.setText(self._nfc_template)
 
     def increment_write_number(self) -> None:
         value = self.nfc_write_value.text()
         prefix_length = self._template_prefix_length(value)
         prefix = value[:prefix_length]
         numeric_part = value[prefix_length:]
+        if not numeric_part:
+            self.nfc_write_value.setText(f"{prefix}1")
+            return
         if not numeric_part.isdigit():
             return
 
@@ -197,6 +345,8 @@ class RightSidebar(QWidget):
         meta_grid.addWidget(self.last_seen_value, 2, 1)
         meta_grid.addWidget(QLabel("当前操作"), 3, 0)
         meta_grid.addWidget(self.operation_value, 3, 1)
+        meta_grid.addWidget(QLabel("正在使用模版"), 4, 0)
+        meta_grid.addWidget(self.current_template_value, 4, 1)
 
         field_grid = QGridLayout()
         field_grid.setHorizontalSpacing(8)
@@ -208,6 +358,7 @@ class RightSidebar(QWidget):
 
         template_actions = QHBoxLayout()
         template_actions.setSpacing(8)
+        template_actions.addWidget(self.fill_template_button)
         template_actions.addWidget(self.increment_number_button)
         template_actions.addWidget(self.template_button)
 
@@ -243,13 +394,17 @@ class RightSidebar(QWidget):
         self.connect_button.clicked.connect(self.nfc_connect_requested.emit)
         self.read_button.clicked.connect(self.nfc_read_requested.emit)
         self.write_button.clicked.connect(lambda: self.nfc_write_requested.emit(self.nfc_write_value.text()))
+        self.fill_template_button.clicked.connect(self.fill_current_template)
         self.increment_number_button.clicked.connect(self.increment_write_number)
-        self.template_button.clicked.connect(self._prompt_nfc_template)
+        self.template_button.clicked.connect(self._open_template_manager)
 
-    def _prompt_nfc_template(self) -> None:
-        value, accepted = QInputDialog.getText(self, "设置模版", "输入模板位数或前缀模板")
-        if accepted:
-            self.set_nfc_template(value)
+    def create_template_manager_dialog(self) -> NfcTemplateManagerDialog:
+        dialog = NfcTemplateManagerDialog(self.template_store, self)
+        dialog.template_applied.connect(self.set_nfc_template)
+        return dialog
+
+    def _open_template_manager(self) -> None:
+        self.create_template_manager_dialog().exec()
 
     def _refresh_template_prefix(self) -> None:
         self.nfc_write_value.set_template_prefix_length(
@@ -259,8 +414,8 @@ class RightSidebar(QWidget):
     def _template_prefix_length(self, value: str) -> int:
         if not self._nfc_template:
             return 0
-        if self._nfc_template.isdigit():
-            return min(int(self._nfc_template), len(value))
+        if self._filled_template_as_text and value.startswith(self._nfc_template):
+            return len(self._nfc_template)
         if value.startswith(self._nfc_template):
             return len(self._nfc_template)
         return 0
